@@ -270,14 +270,28 @@
             'Puedo responder tus preguntas sobre los objetivos, ejes estratégicos y documentos del plan.<br><br>' +
             '<em>¿Qué deseas saber?</em>';
 
+        let _memId = null;  // respaldo en memoria si localStorage no está disponible
+
+        function makeId() {
+            try {
+                if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+            } catch (e) {}
+            return 'conv-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+        }
+
         function getConversationId() {
-            let id = localStorage.getItem('pmdi_conversation_id');
-            if (!id) {
-                id = (crypto.randomUUID ? crypto.randomUUID()
-                      : 'conv-' + Date.now() + '-' + Math.random().toString(16).slice(2));
-                localStorage.setItem('pmdi_conversation_id', id);
+            // Intentar localStorage; si falla (modo privado en móvil), usar memoria
+            try {
+                let id = localStorage.getItem('pmdi_conversation_id');
+                if (!id) {
+                    id = makeId();
+                    localStorage.setItem('pmdi_conversation_id', id);
+                }
+                return id;
+            } catch (e) {
+                if (!_memId) _memId = makeId();
+                return _memId;
             }
-            return id;
         }
 
         function showWelcome() {
@@ -309,7 +323,8 @@
         }
 
         function newConversation() {
-            localStorage.removeItem('pmdi_conversation_id');
+            try { localStorage.removeItem('pmdi_conversation_id'); } catch (e) {}
+            _memId = null;
             getConversationId();          // genera uno nuevo
             conversationHistory = [];
             chatArea.innerHTML = '';

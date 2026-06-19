@@ -47,12 +47,19 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
+# Evita que los navegadores (sobre todo móviles) sirvan una versión cacheada vieja
+NO_CACHE = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 @app.get("/", tags=["Frontend"])
 async def get_index():
     """Sirve la página principal (chat web)"""
     index_file = FRONTEND_DIR / "index.html"
     if index_file.exists():
-        return FileResponse(index_file, media_type="text/html")
+        return FileResponse(index_file, media_type="text/html", headers=NO_CACHE)
     return {"message": "Frontend no disponible"}
 
 @app.get("/admin", tags=["Frontend"])
@@ -60,7 +67,7 @@ async def get_admin():
     """Sirve el panel administrativo"""
     admin_file = FRONTEND_DIR / "admin.html"
     if admin_file.exists():
-        return FileResponse(admin_file, media_type="text/html")
+        return FileResponse(admin_file, media_type="text/html", headers=NO_CACHE)
     return {"message": "Panel admin no disponible"}
 
 @app.post("/query", response_model=QueryResponse, tags=["RAG"])
