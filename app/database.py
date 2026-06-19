@@ -138,3 +138,38 @@ async def delete_all_chunks():
         return {"status": "success", "message": "All chunks deleted"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Historial de conversaciones (tabla chat_messages)
+# ──────────────────────────────────────────────────────────────────────────
+
+async def save_message(conversation_id: str, role: str, content: str,
+                       sources: list[str] | None = None) -> None:
+    """Guarda un mensaje del chat en Supabase."""
+    try:
+        supabase.table("chat_messages").insert({
+            "conversation_id": conversation_id,
+            "role": role,
+            "content": content,
+            "sources": sources or [],
+        }).execute()
+    except Exception as e:
+        print(f"Error saving message: {e}")
+
+
+async def get_messages(conversation_id: str, limit: int = 200) -> list[dict]:
+    """Recupera los mensajes de una conversación en orden cronológico."""
+    try:
+        result = (
+            supabase.table("chat_messages")
+            .select("role,content,sources,created_at")
+            .eq("conversation_id", conversation_id)
+            .order("created_at")
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        print(f"Error getting messages: {e}")
+        return []

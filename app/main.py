@@ -11,7 +11,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.rag import query
-from app.database import get_stats, get_chunks_by_source, delete_all_chunks
+from app.database import (
+    get_stats, get_chunks_by_source, delete_all_chunks,
+    save_message, get_messages,
+)
 
 app = FastAPI(
     title="Agente IA - Plan Maestro Medellín",
@@ -19,9 +22,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
+class Message(BaseModel):
+    role: str
+    content: str
+
 class QueryRequest(BaseModel):
     question: str
     top_k: int = 5
+    conversation_id: str | None = None
+    history: list[Message] = []
 
 class QueryResponse(BaseModel):
     success: bool
@@ -69,10 +78,19 @@ async def post_query(request: QueryRequest) -> QueryResponse:
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="La pregunta no puede estar vacía")
 
-    result = await query(request.question, top_k=request.top_k)
+    history = [{"role": m.role, "content": m.content} for m in request.history]
+    result = await query(request.question, history=history, top_k=request.top_k)
 
     if not result.get("success", False):
         raise HTTPException(status_code=500, detail=result.get("error", "Error desconocido"))
+
+    # Guardar la conversación en Supabase (si el cliente envió un id)
+    if request.conversation_id:
+        await save_message(request.conversation_id, "user", request.question)
+        await save_message(
+            request.conversation_id, "assistant",
+            result["answer"], result.get("sources", []),
+        )
 
     return QueryResponse(
         success=result["success"],
@@ -81,6 +99,12 @@ async def post_query(request: QueryRequest) -> QueryResponse:
         sources=result.get("sources", []),
         chunks_used=result.get("chunks_used", 0)
     )
+
+@app.get("/conversation/{conversation_id}", tags=["RAG"])
+async def get_conversation(conversation_id: str) -> dict:
+    """Recupera los mensajes guardados de una conversación."""
+    messages = await get_messages(conversation_id)
+    return {"conversation_id": conversation_id, "messages": messages}
 
 @app.get("/admin/stats", tags=["Admin"])
 async def get_admin_stats() -> dict:

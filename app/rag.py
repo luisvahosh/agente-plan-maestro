@@ -79,25 +79,29 @@ def _merge_chunks(vector_chunks: list[dict], keyword_chunks: list[dict]) -> list
     return result
 
 
-async def query(question: str, top_k: int = VECTOR_TOP_K) -> dict:
+async def query(question: str, history: list[dict] | None = None,
+                top_k: int = VECTOR_TOP_K) -> dict:
     """
-    Pipeline RAG híbrido con restricción estricta al contexto de los PDFs.
+    Pipeline RAG híbrido con restricción estricta al contexto de los PDFs
+    y memoria conversacional.
 
     Flujo:
     1. Embedding de la pregunta + búsqueda vectorial (semántica)
-    2. Barrera anti-alucinación: si la mejor similitud < MIN_SIMILARITY,
-       la pregunta está fuera de tema → respuesta "sin información" (no llama al LLM)
+    2. Barrera anti-alucinación: si la mejor similitud < MIN_SIMILARITY y NO hay
+       historial, la pregunta está fuera de tema → respuesta "sin información".
+       (En preguntas de seguimiento se confía en el historial + el prompt estricto.)
     3. Búsqueda por palabra clave (complementa la semántica para términos exactos)
-    4. Se combinan ambos resultados y se genera la respuesta con el LLM
+    4. Se combinan ambos resultados y se genera la respuesta con el LLM (con historial)
     """
     try:
         # 1. Búsqueda vectorial
         question_embedding = embed_query(question)
         vector_chunks = await search_similar(question_embedding, top_k=top_k, threshold=0.0)
 
-        # 2. Barrera anti-alucinación (rechaza preguntas claramente fuera de tema)
+        # 2. Barrera anti-alucinación. Solo se aplica a la PRIMERA pregunta
+        #    (sin historial); en seguimientos confiamos en el contexto conversacional.
         best_sim = _best_similarity(vector_chunks)
-        if best_sim < MIN_SIMILARITY:
+        if best_sim < MIN_SIMILARITY and not history:
             return {
                 "success": True,
                 "question": question,
@@ -110,10 +114,10 @@ async def query(question: str, top_k: int = VECTOR_TOP_K) -> dict:
         # 3. Búsqueda por palabra clave (híbrida)
         keyword_chunks = await keyword_search(question, limit=KEYWORD_LIMIT)
 
-        # 4. Combinar y generar respuesta
+        # 4. Combinar y generar respuesta (con memoria conversacional)
         chunks = _merge_chunks(vector_chunks, keyword_chunks)
         context = build_context(chunks)
-        answer = generate_answer(question, context)
+        answer = generate_answer(question, context, history)
         sources = extract_sources(chunks)
 
         return {

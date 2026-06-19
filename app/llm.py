@@ -23,22 +23,34 @@ REGLAS OBLIGATORIAS — debes seguirlas sin excepción:
 8. Sé conciso y directo."""
 
 
-def generate_answer(question: str, context: str) -> str:
-    """Genera respuesta SOLO basada en el contexto de los PDFs del PMDI."""
+def generate_answer(question: str, context: str, history: list[dict] | None = None) -> str:
+    """
+    Genera respuesta SOLO basada en el contexto de los PDFs del PMDI.
+    Si se pasa `history` (mensajes previos), el modelo tiene memoria conversacional
+    para responder preguntas de seguimiento.
+    """
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # Memoria conversacional: incluir los últimos turnos previos
+    if history:
+        for turn in history[-6:]:
+            role = turn.get("role")
+            content = (turn.get("content") or "").strip()
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+
     user_message = (
         f"PREGUNTA: {question}\n\n"
         f"CONTEXTO EXTRAÍDO DE LOS DOCUMENTOS DEL PLAN MAESTRO:\n"
         f"{context}\n\n"
-        f"Responde la pregunta usando EXCLUSIVAMENTE el contexto anterior. "
-        f"Si no hay información suficiente, dilo claramente."
+        f"Responde la pregunta usando EXCLUSIVAMENTE el contexto anterior "
+        f"(y, si aplica, lo ya conversado). Si no hay información suficiente, dilo claramente."
     )
+    messages.append({"role": "user", "content": user_message})
 
     response = client.chat.completions.create(
         model=LLM_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
+        messages=messages,
         temperature=0.1,   # Baja temperatura: respuestas más fieles al contexto
         max_tokens=600,    # Suficiente para respuestas completas; menos = más rápido
         top_p=0.9,

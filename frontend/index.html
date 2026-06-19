@@ -235,17 +235,13 @@
         <div class="header">
             <h1>🤖 Agente IA - Plan Maestro Medellín</h1>
             <p>Consulta inteligente sobre el Plan Maestro Medellín Inteligente (PMDI)</p>
+            <button id="newChatBtn" onclick="newConversation()"
+                style="margin-top:10px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:6px 14px;cursor:pointer;font-size:12px;">
+                ＋ Nueva conversación
+            </button>
         </div>
 
-        <div class="chat-area" id="chatArea">
-            <div class="message assistant">
-                <div class="message-content">
-                    <strong>Hola 👋</strong><br>
-                    Soy un asistente de IA especializado en el Plan Maestro Medellín Inteligente. Puedo responder tus preguntas sobre los objetivos, ejes estratégicos, y documentos del plan.<br><br>
-                    <em>¿Qué deseas saber?</em>
-                </div>
-            </div>
-        </div>
+        <div class="chat-area" id="chatArea"></div>
 
         <div class="input-area">
             <input
@@ -264,6 +260,62 @@
         const chatArea = document.getElementById('chatArea');
         const questionInput = document.getElementById('questionInput');
         const sendBtn = document.getElementById('sendBtn');
+
+        // ─── Memoria conversacional ───
+        let conversationHistory = [];   // [{role, content}]
+
+        const WELCOME_HTML =
+            '<strong>Hola 👋</strong><br>' +
+            'Soy un asistente de IA especializado en el Plan Maestro Medellín Inteligente. ' +
+            'Puedo responder tus preguntas sobre los objetivos, ejes estratégicos y documentos del plan.<br><br>' +
+            '<em>¿Qué deseas saber?</em>';
+
+        function getConversationId() {
+            let id = localStorage.getItem('pmdi_conversation_id');
+            if (!id) {
+                id = (crypto.randomUUID ? crypto.randomUUID()
+                      : 'conv-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+                localStorage.setItem('pmdi_conversation_id', id);
+            }
+            return id;
+        }
+
+        function showWelcome() {
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.innerHTML = '<div class="message-content">' + WELCOME_HTML + '</div>';
+            chatArea.appendChild(div);
+        }
+
+        // Cargar conversación guardada al abrir la página
+        async function loadConversation() {
+            const id = getConversationId();
+            try {
+                const res = await fetch('/conversation/' + id);
+                const data = await res.json();
+                const messages = (data && data.messages) || [];
+                if (messages.length === 0) {
+                    showWelcome();
+                    return;
+                }
+                messages.forEach(m => {
+                    const sources = Array.isArray(m.sources) ? m.sources : [];
+                    addMessage(m.content, m.role === 'user', sources, false);
+                    conversationHistory.push({ role: m.role, content: m.content });
+                });
+            } catch (e) {
+                showWelcome();
+            }
+        }
+
+        function newConversation() {
+            localStorage.removeItem('pmdi_conversation_id');
+            getConversationId();          // genera uno nuevo
+            conversationHistory = [];
+            chatArea.innerHTML = '';
+            showWelcome();
+            questionInput.focus();
+        }
 
         function escapeHtml(text) {
             const map = {
@@ -322,6 +374,7 @@
 
             // Agregar mensaje del usuario
             addMessage(question, true);
+            conversationHistory.push({ role: 'user', content: question });
             questionInput.value = '';
 
             // Mostrar indicador de tipeo
@@ -347,7 +400,10 @@
                     },
                     body: JSON.stringify({
                         question: question,
-                        top_k: 5
+                        top_k: 5,
+                        conversation_id: getConversationId(),
+                        // Enviamos el historial SIN el último turno del usuario (ya va en 'question')
+                        history: conversationHistory.slice(0, -1).slice(-6)
                     })
                 });
 
@@ -363,6 +419,7 @@
 
                 if (data.success) {
                     addMessage(data.answer, false, data.sources);
+                    conversationHistory.push({ role: 'assistant', content: data.answer });
                 } else {
                     addMessage(data.error || 'Ocurrió un error', false);
                 }
@@ -386,7 +443,8 @@
             }
         });
 
-        // Focus inicial
+        // Inicialización: cargar conversación guardada y enfocar
+        loadConversation();
         questionInput.focus();
     </script>
 </body>
