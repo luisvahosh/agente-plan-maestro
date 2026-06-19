@@ -9,6 +9,13 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     ports:
-      # host:contenedor — puerto 7070 en el host (libre; NO toca el 80/443 de Nginx Proxy Manager)
-      # Luego se expone por DNS vía proxy inverso en Nginx Proxy Manager
+      # Acceso directo opcional por IP:7070 (para pruebas). NPM enruta por la red interna.
       - "7070:8000"
+    networks:
+      - red-web
+
+networks:
+  # Red existente de Nginx Proxy Manager. Nos conectamos a ella SIN modificarla.
+  red-web:
+    external: true
+    name: red-de-sitios_red-web
