@@ -9,5 +9,6 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     ports:
-      # host:contenedor — puerto 8080 en el host (libre; NO toca el 80/443 de Nginx Proxy Manager)
-      - "8080:8000"
+      # host:contenedor — puerto 7070 en el host (libre; NO toca el 80/443 de Nginx Proxy Manager)
+      # Luego se expone por DNS vía proxy inverso en Nginx Proxy Manager
+      - "7070:8000"
