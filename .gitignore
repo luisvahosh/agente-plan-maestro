@@ -1,0 +1,27 @@
+# Entorno y secretos
+venv/
+.env
+__pycache__/
+*.pyc
+uvicorn.log
+
+# Datos y PDFs (la ingesta ya está en Supabase; no se necesitan para desplegar)
+Documentos/
+chunks_plan_maestro.json
+*.pdf
+
+# Archivos legacy del enfoque original (Google Gemini / SQL manual)
+insert_embeddings.sql
+insert_parte_*.sql
+insert_sql.py
+generate_embeddings.py
+split.py
+check_models.py
+extract_pdf.py
+models.txt
+error.txt
+error2.txt
+errores/
+
+# Pruebas locales
+scripts/test_nvidia.py

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agente IA - Plan Maestro Medellín</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            height: 90vh;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+            border-radius: 8px 0 8px 8px;
+        }
+
+        .message.assistant .message-content {
+            background: #f0f0f0;
+            color: #333;
+            border-radius: 0 8px 8px 8px;
+        }
+
+        .message-content a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .message.user .message-content a {
+            color: white;
+        }
+
+        .message.assistant .message-content a:hover {
+            text-decoration: underline;
+        }
+
+        .sources {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin-top: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .sources-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 6px;
+        }
+
+        .source-item {
+            color: #666;
+            padding: 4px 0;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            animation: bounce 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .input-area {
+            border-top: 1px solid #eee;
+            padding: 16px;
+            background: white;
+            display: flex;
+            gap: 12px;
+        }
+
+        .input-area input {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            padding: 12px 16px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-area input:focus {
+            border-color: #667eea;
+        }
+
+        .input-area button {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .input-area button:hover {
+            background: #5568d3;
+        }
+
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .admin-link {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .admin-link:hover {
+            background: #5568d3;
+        }
+
+        .loading {
+            opacity: 0.6;
+        }
+
+        @media (max-width: 768px) {
+            .message-content {
+                max-width: 90%;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .admin-link {
+                padding: 10px 14px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Agente IA - Plan Maestro Medellín</h1>
+            <p>Consulta inteligente sobre el Plan Maestro Medellín Inteligente (PMDI)</p>
+        </div>
+
+        <div class="chat-area" id="chatArea">
+            <div class="message assistant">
+                <div class="message-content">
+                    <strong>Hola 👋</strong><br>
+                    Soy un asistente de IA especializado en el Plan Maestro Medellín Inteligente. Puedo responder tus preguntas sobre los objetivos, ejes estratégicos, y documentos del plan.<br><br>
+                    <em>¿Qué deseas saber?</em>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <input
+                type="text"
+                id="questionInput"
+                placeholder="Escribe tu pregunta aquí..."
+                autocomplete="off"
+            >
+            <button id="sendBtn" onclick="sendQuestion()">Enviar</button>
+        </div>
+    </div>
+
+    <a href="/admin" class="admin-link">Panel Admin</a>
+
+    <script>
+        const chatArea = document.getElementById('chatArea');
+        const questionInput = document.getElementById('questionInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function addMessage(content, isUser = false, sources = []) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            if (isUser) {
+                contentDiv.textContent = content;
+            } else {
+                contentDiv.innerHTML = marked.parse(content);
+            }
+
+            messageDiv.appendChild(contentDiv);
+
+            if (!isUser && sources.length > 0) {
+                const sourcesDiv = document.createElement('div');
+                sourcesDiv.className = 'sources';
+                sourcesDiv.innerHTML = '<div class="sources-title">📚 Fuentes consultadas:</div>';
+
+                sources.forEach(source => {
+                    const sourceItem = document.createElement('div');
+                    sourceItem.className = 'source-item';
+                    sourceItem.textContent = '• ' + source;
+                    sourcesDiv.appendChild(sourceItem);
+                });
+
+                messageDiv.appendChild(sourcesDiv);
+            }
+
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+
+            return messageDiv;
+        }
+
+        async function sendQuestion() {
+            const question = questionInput.value.trim();
+
+            if (!question) {
+                alert('Por favor, escribe una pregunta');
+                return;
+            }
+
+            // Agregar mensaje del usuario
+            addMessage(question, true);
+            questionInput.value = '';
+
+            // Mostrar indicador de tipeo
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message assistant';
+            typingDiv.id = 'typingIndicator';
+            const typingContent = document.createElement('div');
+            typingContent.className = 'message-content typing-indicator';
+            typingContent.innerHTML = '<span></span><span></span><span></span>';
+            typingDiv.appendChild(typingContent);
+            chatArea.appendChild(typingDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+
+            // Desabilitar entrada
+            questionInput.disabled = true;
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        top_k: 5
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // Remover indicador de tipeo
+                const typingEl = document.getElementById('typingIndicator');
+                if (typingEl) typingEl.remove();
+
+                if (data.success) {
+                    addMessage(data.answer, false, data.sources);
+                } else {
+                    addMessage(data.error || 'Ocurrió un error', false);
+                }
+            } catch (error) {
+                const typingEl = document.getElementById('typingIndicator');
+                if (typingEl) typingEl.remove();
+
+                addMessage(`Error: ${error.message}`, false);
+            } finally {
+                questionInput.disabled = false;
+                sendBtn.disabled = false;
+                questionInput.focus();
+            }
+        }
+
+        // Permitir enviar con Enter
+        questionInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendQuestion();
+            }
+        });
+
+        // Focus inicial
+        questionInput.focus();
+    </script>
+</body>
+</html>
