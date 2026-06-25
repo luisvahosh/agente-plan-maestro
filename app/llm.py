@@ -38,12 +38,8 @@ RESTRICCIONES ESTRICTAS:
 - Nunca uses lenguaje político, sesgado o corporativo ajeno a la institucionalidad del Distrito."""
 
 
-def generate_answer(question: str, context: str, history: list[dict] | None = None) -> str:
-    """
-    Genera respuesta SOLO basada en el contexto de los PDFs del PMDI.
-    Si se pasa `history` (mensajes previos), el modelo tiene memoria conversacional
-    para responder preguntas de seguimiento.
-    """
+def _build_messages(question: str, context: str, history: list[dict] | None = None) -> list[dict]:
+    """Arma los mensajes (system + memoria + pregunta con contexto) para el LLM."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     # Memoria conversacional: incluir los últimos turnos previos
@@ -62,13 +58,35 @@ def generate_answer(question: str, context: str, history: list[dict] | None = No
         f"(y, si aplica, lo ya conversado). Si no hay información suficiente, dilo claramente."
     )
     messages.append({"role": "user", "content": user_message})
+    return messages
 
+
+def generate_answer(question: str, context: str, history: list[dict] | None = None) -> str:
+    """Genera la respuesta completa (no streaming) basada en el contexto del PMDI."""
     response = client.chat.completions.create(
         model=LLM_MODEL,
-        messages=messages,
-        temperature=0.1,   # Baja temperatura: respuestas más fieles al contexto
-        max_tokens=600,    # Suficiente para respuestas completas; menos = más rápido
+        messages=_build_messages(question, context, history),
+        temperature=0.1,
+        max_tokens=600,
         top_p=0.9,
     )
-
     return response.choices[0].message.content
+
+
+def generate_answer_stream(question: str, context: str, history: list[dict] | None = None):
+    """
+    Igual que generate_answer pero en STREAMING: va devolviendo fragmentos de texto
+    a medida que el modelo los genera (para mostrar la respuesta progresivamente).
+    """
+    stream = client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=_build_messages(question, context, history),
+        temperature=0.1,
+        max_tokens=600,
+        top_p=0.9,
+        stream=True,
+    )
+    for chunk in stream:
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta

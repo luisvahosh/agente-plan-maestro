@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -6,14 +7,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.rag import query
+from app.rag import query, prepare
+from app.llm import generate_answer_stream
 from app.database import (
     get_stats, get_chunks_by_source, delete_all_chunks,
-    save_message, get_messages,
+    save_message, save_message_sync, get_messages,
 )
 
 app = FastAPI(
@@ -105,6 +107,49 @@ async def post_query(request: QueryRequest) -> QueryResponse:
         answer=result["answer"],
         sources=result.get("sources", []),
         chunks_used=result.get("chunks_used", 0)
+    )
+
+@app.post("/query-stream", tags=["RAG"])
+async def post_query_stream(request: QueryRequest):
+    """
+    Igual que /query pero en STREAMING (Server-Sent Events): envía la respuesta
+    en fragmentos a medida que el modelo la genera, para mostrarla progresivamente.
+    Eventos: {"type":"delta","data":"..."} · {"type":"done","sources":[...]} · {"type":"error"}
+    """
+    if not request.question.strip():
+        raise HTTPException(status_code=400, detail="La pregunta no puede estar vacía")
+
+    history = [{"role": m.role, "content": m.content} for m in request.history]
+    # La recuperación (async) se hace ANTES de empezar a transmitir
+    prep = await prepare(request.question, history=history)
+
+    def sse(obj: dict) -> str:
+        return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+    def generate():
+        full = []
+        try:
+            if prep["off_topic"]:
+                full.append(prep["answer"])
+                yield sse({"type": "delta", "data": prep["answer"]})
+            else:
+                for delta in generate_answer_stream(request.question, prep["context"], history):
+                    full.append(delta)
+                    yield sse({"type": "delta", "data": delta})
+
+            answer = "".join(full)
+            if request.conversation_id:
+                save_message_sync(request.conversation_id, "user", request.question)
+                save_message_sync(request.conversation_id, "assistant", answer, prep["sources"])
+
+            yield sse({"type": "done", "sources": prep["sources"]})
+        except Exception as e:
+            yield sse({"type": "error", "data": str(e)})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 @app.get("/conversation/{conversation_id}", tags=["RAG"])

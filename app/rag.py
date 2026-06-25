@@ -83,6 +83,30 @@ def _merge_chunks(vector_chunks: list[dict], keyword_chunks: list[dict]) -> list
     return result
 
 
+async def prepare(question: str, history: list[dict] | None = None,
+                  top_k: int = VECTOR_TOP_K) -> dict:
+    """
+    Hace SOLO la recuperación (embedding + búsquedas + merge) y decide si la pregunta
+    está fuera de tema. Devuelve el contexto y las fuentes listos para generar.
+    Se usa tanto en la respuesta normal como en la de streaming.
+    """
+    question_embedding = embed_query(question)
+    vector_chunks = await search_similar(question_embedding, top_k=top_k, threshold=0.0)
+
+    best_sim = _best_similarity(vector_chunks)
+    if best_sim < MIN_SIMILARITY and not history:
+        return {"off_topic": True, "answer": NO_CONTEXT_RESPONSE,
+                "sources": [], "context": "", "best_similarity": best_sim}
+
+    keyword_chunks = await keyword_search(question, limit=KEYWORD_LIMIT)
+    verified_chunks = await search_verified(question_embedding, top_k=2, threshold=0.5)
+    chunks = _merge_chunks(verified_chunks + vector_chunks, keyword_chunks)
+
+    return {"off_topic": False, "answer": None, "sources": extract_sources(chunks),
+            "context": build_context(chunks), "best_similarity": best_sim,
+            "chunks_used": len(chunks)}
+
+
 async def query(question: str, history: list[dict] | None = None,
                 top_k: int = VECTOR_TOP_K) -> dict:
     """
@@ -98,42 +122,21 @@ async def query(question: str, history: list[dict] | None = None,
     4. Se combinan ambos resultados y se genera la respuesta con el LLM (con historial)
     """
     try:
-        # 1. Búsqueda vectorial
-        question_embedding = embed_query(question)
-        vector_chunks = await search_similar(question_embedding, top_k=top_k, threshold=0.0)
+        prep = await prepare(question, history=history, top_k=top_k)
 
-        # 2. Barrera anti-alucinación. Solo se aplica a la PRIMERA pregunta
-        #    (sin historial); en seguimientos confiamos en el contexto conversacional.
-        best_sim = _best_similarity(vector_chunks)
-        if best_sim < MIN_SIMILARITY and not history:
+        if prep["off_topic"]:
             return {
-                "success": True,
-                "question": question,
-                "answer": NO_CONTEXT_RESPONSE,
-                "sources": [],
-                "chunks_used": 0,
-                "best_similarity": best_sim,
+                "success": True, "question": question,
+                "answer": prep["answer"], "sources": [], "chunks_used": 0,
+                "best_similarity": prep["best_similarity"],
             }
 
-        # 3. Búsqueda por palabra clave (híbrida)
-        keyword_chunks = await keyword_search(question, limit=KEYWORD_LIMIT)
-
-        # 3b. Búsqueda dedicada al banco verificado (garantiza la respuesta curada)
-        verified_chunks = await search_verified(question_embedding, top_k=2, threshold=0.5)
-
-        # 4. Combinar (verificados primero) y generar respuesta
-        chunks = _merge_chunks(verified_chunks + vector_chunks, keyword_chunks)
-        context = build_context(chunks)
-        answer = generate_answer(question, context, history)
-        sources = extract_sources(chunks)
-
+        answer = generate_answer(question, prep["context"], history)
         return {
-            "success": True,
-            "question": question,
-            "answer": answer,
-            "sources": sources,
-            "chunks_used": len(chunks),
-            "best_similarity": best_sim,
+            "success": True, "question": question,
+            "answer": answer, "sources": prep["sources"],
+            "chunks_used": prep.get("chunks_used", 0),
+            "best_similarity": prep["best_similarity"],
         }
 
     except Exception as e:

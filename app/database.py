@@ -200,9 +200,9 @@ async def delete_all_chunks():
 # Historial de conversaciones (tabla chat_messages)
 # ──────────────────────────────────────────────────────────────────────────
 
-async def save_message(conversation_id: str, role: str, content: str,
-                       sources: list[str] | None = None) -> None:
-    """Guarda un mensaje del chat en Supabase."""
+def save_message_sync(conversation_id: str, role: str, content: str,
+                      sources: list[str] | None = None) -> None:
+    """Versión síncrona (usada por el endpoint de streaming, que corre en threadpool)."""
     try:
         supabase.table("chat_messages").insert({
             "conversation_id": conversation_id,
@@ -212,6 +212,12 @@ async def save_message(conversation_id: str, role: str, content: str,
         }).execute()
     except Exception as e:
         print(f"Error saving message: {e}")
+
+
+async def save_message(conversation_id: str, role: str, content: str,
+                       sources: list[str] | None = None) -> None:
+    """Guarda un mensaje del chat en Supabase."""
+    save_message_sync(conversation_id, role, content, sources)
 
 
 async def get_messages(conversation_id: str, limit: int = 200) -> list[dict]:

@@ -336,6 +336,26 @@
             return s.indexOf('Banco Q&A') === 0 || s.indexOf('Casos de articul') === 0;
         }
 
+        // Construye el membrete de fuentes (chips). Reutilizado por addMessage y el streaming.
+        function buildSourcesBox(sources) {
+            const box = document.createElement('div');
+            box.className = 'sources';
+            const label = document.createElement('div');
+            label.className = 'sources-title';
+            label.textContent = '📑 Fuentes consultadas';
+            box.appendChild(label);
+            const chips = document.createElement('div');
+            chips.className = 'chips';
+            sources.forEach(s => {
+                const chip = document.createElement('span');
+                chip.className = 'chip' + (isVerified(s) ? ' chip-verified' : '');
+                chip.textContent = cleanSource(s);
+                chips.appendChild(chip);
+            });
+            box.appendChild(chips);
+            return box;
+        }
+
         function addMessage(content, isUser = false, sources = []) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
@@ -350,23 +370,7 @@
             messageDiv.appendChild(contentDiv);
 
             if (!isUser && sources && sources.length > 0) {
-                const box = document.createElement('div');
-                box.className = 'sources';
-                const label = document.createElement('div');
-                label.className = 'sources-title';
-                label.textContent = '📑 Fuentes consultadas';
-                box.appendChild(label);
-
-                const chips = document.createElement('div');
-                chips.className = 'chips';
-                sources.forEach(s => {
-                    const chip = document.createElement('span');
-                    chip.className = 'chip' + (isVerified(s) ? ' chip-verified' : '');
-                    chip.textContent = cleanSource(s);
-                    chips.appendChild(chip);
-                });
-                box.appendChild(chips);
-                messageDiv.appendChild(box);
+                messageDiv.appendChild(buildSourcesBox(sources));
             }
 
             chatArea.appendChild(messageDiv);
@@ -382,6 +386,7 @@
             conversationHistory.push({ role: 'user', content: question });
             questionInput.value = '';
 
+            // Indicador de escritura mientras se recupera el contexto (antes del 1er token)
             const typingDiv = document.createElement('div');
             typingDiv.className = 'message assistant';
             typingDiv.id = 'typingIndicator';
@@ -392,32 +397,71 @@
             questionInput.disabled = true;
             sendBtn.disabled = true;
 
+            let bubble = null, contentDiv = null, full = '', sources = [];
+
+            function ensureBubble() {
+                if (bubble) return;
+                const t = document.getElementById('typingIndicator');
+                if (t) t.remove();
+                bubble = document.createElement('div');
+                bubble.className = 'message assistant';
+                contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                bubble.appendChild(contentDiv);
+                chatArea.appendChild(bubble);
+            }
+
             try {
-                const response = await fetch('/query', {
+                const response = await fetch('/query-stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         question: question,
-                        top_k: 5,
                         conversation_id: getConversationId(),
                         history: conversationHistory.slice(0, -1).slice(-6)
                     })
                 });
-                if (!response.ok) throw new Error(`Error: ${response.statusText}`);
-                const data = await response.json();
+                if (!response.ok || !response.body) throw new Error(`Error: ${response.statusText}`);
 
-                const typingEl = document.getElementById('typingIndicator');
-                if (typingEl) typingEl.remove();
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buf = '';
 
-                if (data.success) {
-                    addMessage(data.answer, false, data.sources);
-                    conversationHistory.push({ role: 'assistant', content: data.answer });
-                } else {
-                    addMessage(data.error || 'Ocurrió un error', false);
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buf += decoder.decode(value, { stream: true });
+                    let idx;
+                    while ((idx = buf.indexOf('\n\n')) >= 0) {
+                        const raw = buf.slice(0, idx).trim();
+                        buf = buf.slice(idx + 2);
+                        if (!raw.startsWith('data:')) continue;
+                        let obj;
+                        try { obj = JSON.parse(raw.slice(5).trim()); } catch (e) { continue; }
+
+                        if (obj.type === 'delta') {
+                            ensureBubble();
+                            full += obj.data;
+                            contentDiv.textContent = full;   // texto plano mientras llega (rápido)
+                            chatArea.scrollTop = chatArea.scrollHeight;
+                        } else if (obj.type === 'done') {
+                            sources = obj.sources || [];
+                        } else if (obj.type === 'error') {
+                            ensureBubble();
+                            full += '\n\n[Ocurrió un error: ' + obj.data + ']';
+                        }
+                    }
                 }
+
+                ensureBubble();
+                // Render final: markdown + se quita la cita inline + membrete de fuentes
+                contentDiv.innerHTML = marked.parse(stripInlineCites(full));
+                if (sources.length) bubble.appendChild(buildSourcesBox(sources));
+                conversationHistory.push({ role: 'assistant', content: full });
+                chatArea.scrollTop = chatArea.scrollHeight;
             } catch (error) {
-                const typingEl = document.getElementById('typingIndicator');
-                if (typingEl) typingEl.remove();
+                const t = document.getElementById('typingIndicator');
+                if (t) t.remove();
                 addMessage(`Error: ${error.message}`, false);
             } finally {
                 questionInput.disabled = false;
