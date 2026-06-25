@@ -1,269 +1,120 @@
-# 🤖 Agente IA - Plan Maestro Medellín Inteligente
+# 🤖 Asistente Virtual del PMDI
 
-Plataforma RAG (Retrieval-Augmented Generation) para consultas inteligentes sobre el Plan Maestro Medellín Inteligente usando NVIDIA AI Foundation y Supabase pgvector.
+Agente conversacional (RAG) que responde preguntas sobre el **Plan Maestro Medellín Distrito Inteligente (PMDI)**, basándose únicamente en los documentos oficiales del plan. Identidad visual de la Alcaldía de Medellín.
 
-## 🏗️ Arquitectura
+🌐 En producción: **https://agentepmdi.centrodepensamientoitm.cloud/**
+
+---
+
+## Arquitectura
 
 ```
-Chat Web (Hostinger)
-    ↓
-FastAPI Backend (Docker)
-    ↓
-NVIDIA Embeddings & LLM APIs
-    ↓
-Supabase pgvector (BD)
+Usuario (web/móvil)
+   │
+   ▼
+Nginx Proxy Manager (HTTPS, dominio)
+   │
+   ▼
+FastAPI (Docker en VPS Hostinger)
+   │   1. Embedding de la pregunta ─────► NVIDIA Embeddings API
+   │   2. Búsqueda híbrida (paralela):
+   │        • vectorial (pgvector)
+   │        • palabra clave
+   │        • banco verificado (curado)
+   │   3. Genera respuesta (streaming) ──► NVIDIA LLM API
+   ▼
+Supabase (PostgreSQL + pgvector)
+   • document_chunks  (PDFs + banco Q&A verificado)
+   • chat_messages    (historial de conversaciones)
 ```
 
-- **Frontend**: Chat web + panel administrativo (HTML/CSS/JS puro)
-- **Backend**: FastAPI + Python
-- **Embeddings**: NVIDIA NIM (nvqa-e5-v5) - 1024 dimensiones
-- **LLM**: NVIDIA NIM (Llama 3.1 70B) para generación
-- **Base de datos**: Supabase con pgvector
-- **Despliegue**: Docker en Hostinger VPS
+**Tecnologías**
+- **Embeddings**: NVIDIA `nvidia/nv-embedqa-e5-v5` (1024 dimensiones)
+- **LLM**: NVIDIA `meta/llama-3.1-8b-instruct` (rápido; configurable en `.env`)
+- **Base de datos**: Supabase (pgvector) — ~2420 chunks de PDFs + banco Q&A verificado
+- **Backend**: FastAPI (Python) con respuestas en streaming (SSE)
+- **Frontend**: HTML/CSS/JS, identidad Alcaldía de Medellín, móvil-first
+- **Despliegue**: Docker en VPS Hostinger, detrás de Nginx Proxy Manager
 
-## ⚙️ Configuración Inicial
+---
 
-### 1. Clonar y configurar el proyecto
+## Estructura del proyecto
+
+```
+app/
+  main.py        Endpoints FastAPI (/query, /query-stream, /admin/*, /conversation/*)
+  rag.py         Pipeline RAG (recuperación híbrida + barrera anti-alucinación)
+  embeddings.py  Cliente NVIDIA embeddings (input_type query/passage)
+  llm.py         Cliente NVIDIA LLM (system prompt institucional + streaming)
+  database.py    Supabase: búsqueda vectorial, banco verificado, historial
+frontend/
+  index.html     Chat web (streaming, membrete de fuentes con chips)
+  admin.html     Panel administrativo (estadísticas, documentos)
+  logo-alcaldia.png
+scripts/
+  ingest.py                 Ingesta de los PDFs de Documentos/ a Supabase
+  ingest_qa.py              Inyecta el banco Q&A verificado (entrenamiento/)
+  aumentar_entrenamiento.py Inyecta variantes parafraseadas (data augmentation)
+  generar_variantes.py      Genera variantes para evaluar generalización
+  evaluar_agente.py         Batería de evaluación (golden set + LLM-juez)
+  evaluar_variantes.py      Evaluación de generalización (variantes)
+sql/
+  init.sql            Tabla document_chunks + función match_document_chunks
+  chat_messages.sql   Tabla del historial de chat
+  create_index.sql    Índice IVFFLAT (correr tras la ingesta)
+Documentos/      12 PDFs del PMDI (fuente, local)
+entrenamiento/   Banco Q&A verificado y reportes de evaluación (local)
+Dockerfile · docker-compose.yml · nginx/ · requirements.txt · .env
+```
+
+---
+
+## Variables de entorno (`.env`)
 
 ```bash
-git clone <repo>
-cd AgenteIAPlanMaestro
-cp .env.example .env
-```
-
-### 2. Completar `.env` con credenciales
-
-```bash
-# NVIDIA AI Foundation (crear cuenta en nvidia.com)
-NVIDIA_API_KEY=nvapi-YOUR_KEY_HERE
+NVIDIA_API_KEY=nvapi-...
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 EMBED_MODEL=nvidia/nv-embedqa-e5-v5
-LLM_MODEL=meta/llama-3.1-70b-instruct
-
-# Supabase (crear proyecto en supabase.com)
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-SUPABASE_KEY=YOUR_ANON_KEY
+LLM_MODEL=meta/llama-3.1-8b-instruct      # 70b es más preciso pero MUY lento en el tier gratuito
+SUPABASE_URL=https://TU-PROYECTO.supabase.co
+SUPABASE_KEY=eyJ...                         # service_role key
 ```
 
-### 3. Crear base de datos en Supabase
+---
 
-1. Ir a https://supabase.com
-2. Crear nuevo proyecto
-3. Ir al SQL Editor y ejecutar el contenido de `sql/init.sql`:
-   - Crea tabla `document_chunks`
-   - Instala extensión `vector`
-   - Crea función `match_document_chunks` para búsqueda
-   - Habilita Row Level Security
+## Puesta en marcha rápida
 
-### 4. Instalar dependencias (local)
+Ver **SETUP.md** para el paso a paso completo. Resumen:
 
 ```bash
+# 1. Dependencias (local)
+python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-## 📥 Ingesta de Datos
+# 2. Crear tablas en Supabase (SQL Editor): sql/init.sql y sql/chat_messages.sql
 
-Los 2435 fragmentos ya están extraídos en `chunks_plan_maestro.json`. Para ingresarlos a Supabase:
-
-```bash
+# 3. Ingesta de los PDFs + banco verificado (una vez, desde local)
 python scripts/ingest.py
+python scripts/ingest_qa.py
+
+# 4. Probar local
+uvicorn app.main:app --reload     # http://localhost:8000/
 ```
 
-Este script:
-1. Carga los chunks desde JSON
-2. Genera embeddings con NVIDIA (lotes de 10)
-3. Inserta en Supabase con manejo de reintentos
-4. Toma ~10-15 minutos para 2435 chunks
-
-## 🚀 Ejecución Local
-
-### Con Python puro
+## Despliegue / actualización en el VPS
 
 ```bash
-uvicorn app.main:app --reload
+cd ~/agente-plan-maestro
+git pull
+docker compose up -d --build
 ```
+El `LLM_MODEL` se cambia en el `.env` del VPS (no va en git). El acceso público va por Nginx Proxy Manager → contenedor `agente-plan-maestro:8000`.
 
-Acceder a:
-- Chat: http://localhost:8000/
-- Admin: http://localhost:8000/admin
-- Docs API: http://localhost:8000/docs
+---
 
-### Con Docker (simula Hostinger)
+## Notas
 
-```bash
-docker compose up -d
-```
-
-Acceder a:
-- Chat: http://localhost:80/
-- Admin: http://localhost:80/admin
-
-## 📚 Endpoints API
-
-### POST `/query`
-Consulta RAG principal
-```bash
-curl -X POST http://localhost:8000/query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "¿Cuáles son los ejes estratégicos del Plan Maestro?",
-    "top_k": 5
-  }'
-```
-
-Respuesta:
-```json
-{
-  "success": true,
-  "question": "...",
-  "answer": "...",
-  "sources": ["PMDI Completo V4.pdf", "..."],
-  "chunks_used": 5
-}
-```
-
-### GET `/admin/stats`
-Estadísticas de la BD
-```json
-{
-  "total_chunks": 2435,
-  "total_documents": 11,
-  "documents": ["Anexo 1...", ...]
-}
-```
-
-### GET `/admin/documents`
-Lista de documentos con conteo
-```json
-{
-  "documents": [
-    {"name": "PMDI Completo V4.pdf", "chunk_count": 245},
-    ...
-  ],
-  "total": 11
-}
-```
-
-### GET `/health`
-Health check
-
-### GET `/docs`
-Documentación Swagger interactiva
-
-## 🐳 Despliegue en Hostinger
-
-### Preparación en VPS
-
-```bash
-# SSH al VPS
-ssh usuario@vps-ip
-
-# Clonar proyecto
-git clone <repo> /home/usuario/apps/planmaestro
-cd /home/usuario/apps/planmaestro
-
-# Configurar .env
-cp .env.example .env
-# Editar .env con credenciales
-nano .env
-
-# Iniciar servicios
-docker compose up -d
-
-# Verificar
-docker compose ps
-docker compose logs -f api
-```
-
-### Verificar despliegue
-
-```bash
-# Test de API
-curl http://vps-ip/query -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"question": "¿Qué es el PMDI?"}'
-
-# Abrir en navegador
-# Chat: http://vps-ip/
-# Admin: http://vps-ip/admin
-```
-
-### Re-indexación en servidor
-
-```bash
-docker compose exec api python scripts/ingest.py
-```
-
-## 📁 Estructura
-
-```
-AgenteIAPlanMaestro/
-├── app/
-│   ├── main.py           # Endpoints FastAPI
-│   ├── rag.py            # Pipeline RAG
-│   ├── embeddings.py     # Cliente NVIDIA embeddings
-│   ├── llm.py            # Cliente NVIDIA LLM
-│   └── database.py       # Cliente Supabase
-├── scripts/
-│   ├── ingest.py         # Ingesta de chunks a Supabase
-│   └── extract_pdf.py    # Extrae texto de PDFs (existente)
-├── sql/
-│   └── init.sql          # Inicialización de BD Supabase
-├── frontend/
-│   ├── index.html        # Chat web
-│   └── admin.html        # Panel admin
-├── nginx/
-│   └── default.conf      # Configuración Nginx
-├── docker-compose.yml    # Servicios Docker
-├── Dockerfile            # Imagen FastAPI
-├── requirements.txt      # Dependencias Python
-├── chunks_plan_maestro.json  # Datos (2435 chunks)
-├── Documentos/           # PDFs originales
-└── README.md
-```
-
-## 🔧 Troubleshooting
-
-### Error: "NVIDIA_API_KEY not found"
-- Verificar que `.env` tiene `NVIDIA_API_KEY=nvapi-...`
-- Crear cuenta en https://nvidia.com y obtener API key
-
-### Error: "SUPABASE_URL and SUPABASE_KEY are required"
-- Crear proyecto en https://supabase.com
-- Obtener URL y ANON KEY desde project settings
-- Ejecutar `sql/init.sql` en Supabase SQL Editor
-
-### Error: "connection refused" en docker
-- Verificar: `docker compose ps`
-- Ver logs: `docker compose logs api`
-- Reintentar: `docker compose restart api`
-
-### Ingesta lenta o con timeouts
-- Reducir `BATCH_SIZE` en `scripts/ingest.py` (ej: 5 en lugar de 10)
-- Aumentar `MAX_RETRIES` para más intentos
-
-## 📊 Rendimiento
-
-- **Ingesta**: ~2435 chunks en 10-15 minutos (NVIDIA API)
-- **Query**: ~2-5 segundos (embedding + búsqueda + generación)
-- **BD**: pgvector indexado con IVFFLAT para búsqueda O(log N)
-
-## 🎓 Documentación
-
-Documentación API interactiva disponible en `/docs` (Swagger UI)
-
-## 📝 Notas
-
-- Los embeddings NVIDIA usan 1024 dimensiones (vs Google 768)
-- Los PDFs originales están en `Documentos/` (no requeridos en runtime)
-- El archivo `chunks_plan_maestro.json` es necesario para reingestión
-- RLS en Supabase está permitido para demo; en producción, usar políticas más restrictivas
-
-## 🚀 Próximas mejoras
-
-- [ ] Autenticación de usuarios
-- [ ] Historial de consultas
-- [ ] Búsqueda de texto + vectorial (hybrid search)
-- [ ] Upload de nuevos PDFs desde admin
-- [ ] Soporte multi-idioma
-- [ ] Caché de respuestas frecuentes
+- **Restricción de contexto**: el agente solo responde con base en los documentos del PMDI. Si la pregunta es ajena, redirige cortésmente (barrera por umbral de similitud + prompt estricto).
+- **Banco verificado**: respuestas curadas por el equipo del PMDI (con su nombre propio en las citas), priorizadas sobre los fragmentos crudos de los PDFs.
+- **Velocidad**: la latencia depende del tier gratuito de NVIDIA (variable). El streaming muestra la respuesta progresivamente para mejorar la experiencia.
+- **Evaluación**: `scripts/evaluar_agente.py` (golden set) y `scripts/evaluar_variantes.py` (generalización con paráfrasis).
