@@ -329,7 +329,8 @@
             if (!s) return '';
             if (s.indexOf('Banco Q&A') === 0) return '✓ Respuesta verificada';
             if (s.indexOf('Casos de articul') === 0) return '✓ Caso verificado';
-            return s.replace(/\.pdf$/i, '').replace(/\s+/g, ' ').trim();
+            // normalize('NFC') compone acentos por si llega algún nombre descompuesto
+            return s.normalize('NFC').replace(/\.pdf$/i, '').replace(/\s+/g, ' ').trim();
         }
         function isVerified(s) {
             return s.indexOf('Banco Q&A') === 0 || s.indexOf('Casos de articul') === 0;
