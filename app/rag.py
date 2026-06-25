@@ -1,6 +1,6 @@
 from app.embeddings import embed_query
 from app.llm import generate_answer
-from app.database import search_similar, keyword_search
+from app.database import search_similar, keyword_search, search_verified
 
 # Umbral minimo de similitud vectorial para considerar una pregunta "dentro del tema".
 # Si la mejor coincidencia vectorial no lo supera, la pregunta se considera fuera
@@ -8,9 +8,13 @@ from app.database import search_similar, keyword_search
 MIN_SIMILARITY = 0.42
 
 # Cuantos chunks recuperar de cada fuente
-VECTOR_TOP_K = 6
-KEYWORD_LIMIT = 5
-MAX_CONTEXT_CHUNKS = 7
+VECTOR_TOP_K = 12          # red más amplia: así el chunk verificado aparece aunque
+KEYWORD_LIMIT = 5          # quede en posición media al reformular la pregunta
+MAX_CONTEXT_CHUNKS = 8
+
+# Fuentes curadas/verificadas por el equipo PMDI. Tienen PRIORIDAD en el contexto:
+# son respuestas revisadas, más precisas que los fragmentos crudos de los PDFs.
+VERIFIED_SOURCES = {"Banco Q&A verificado PMDI", "Casos de articulación PMDI"}
 
 NO_CONTEXT_RESPONSE = (
     "No encontré información sobre esto en los documentos del "
@@ -42,39 +46,39 @@ def _best_similarity(chunks: list[dict]) -> float:
 
 def _merge_chunks(vector_chunks: list[dict], keyword_chunks: list[dict]) -> list[dict]:
     """
-    Combina garantizando representación de AMBAS búsquedas:
-    reserva ~la mitad de los slots para los mejores chunks por palabra clave
-    (ya rankeados) y la otra mitad para los vectoriales. Así el chunk con el
-    término exacto (ej: 'cinco pilares') no queda desplazado por los semánticos.
+    Combina los resultados priorizando:
+    1. Chunks de FUENTES VERIFICADAS (banco Q&A curado) — van primero, porque son
+       respuestas revisadas y precisas. Esto evita que al reformular la pregunta el
+       agente caiga en fragmentos crudos de PDF y pierda los datos exactos.
+    2. Mejores chunks por palabra clave (término exacto).
+    3. Chunks vectoriales (semántica).
     """
-    keyword_slots = MAX_CONTEXT_CHUNKS // 2  # p.ej. 3 de 7
     seen = set()
     result = []
 
-    # 1. Mejores chunks por palabra clave (relevancia exacta)
+    def add(chunk):
+        cid = chunk.get("chunk_id")
+        if cid not in seen and len(result) < MAX_CONTEXT_CHUNKS:
+            seen.add(cid)
+            result.append(chunk)
+
+    # 1. PRIORIDAD: chunks verificados que aparezcan en cualquiera de las búsquedas
+    for c in vector_chunks + keyword_chunks:
+        if c.get("source") in VERIFIED_SOURCES:
+            add(c)
+
+    # 2. Mejores chunks por palabra clave
+    keyword_slots = MAX_CONTEXT_CHUNKS // 2
     for c in keyword_chunks[:keyword_slots]:
-        cid = c.get("chunk_id")
-        if cid not in seen:
-            seen.add(cid)
-            result.append(c)
+        add(c)
 
-    # 2. Rellenar con chunks vectoriales (semántica)
+    # 3. Rellenar con vectoriales (semántica)
     for c in vector_chunks:
-        if len(result) >= MAX_CONTEXT_CHUNKS:
-            break
-        cid = c.get("chunk_id")
-        if cid not in seen:
-            seen.add(cid)
-            result.append(c)
+        add(c)
 
-    # 3. Si queda espacio, más chunks por palabra clave
+    # 4. Resto de palabra clave si queda espacio
     for c in keyword_chunks[keyword_slots:]:
-        if len(result) >= MAX_CONTEXT_CHUNKS:
-            break
-        cid = c.get("chunk_id")
-        if cid not in seen:
-            seen.add(cid)
-            result.append(c)
+        add(c)
 
     return result
 
@@ -114,8 +118,11 @@ async def query(question: str, history: list[dict] | None = None,
         # 3. Búsqueda por palabra clave (híbrida)
         keyword_chunks = await keyword_search(question, limit=KEYWORD_LIMIT)
 
-        # 4. Combinar y generar respuesta (con memoria conversacional)
-        chunks = _merge_chunks(vector_chunks, keyword_chunks)
+        # 3b. Búsqueda dedicada al banco verificado (garantiza la respuesta curada)
+        verified_chunks = await search_verified(question_embedding, top_k=2, threshold=0.5)
+
+        # 4. Combinar (verificados primero) y generar respuesta
+        chunks = _merge_chunks(verified_chunks + vector_chunks, keyword_chunks)
         context = build_context(chunks)
         answer = generate_answer(question, context, history)
         sources = extract_sources(chunks)

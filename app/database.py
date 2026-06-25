@@ -100,6 +100,62 @@ def _fetch_all_sources() -> list[str]:
     return sources
 
 
+# ── Búsqueda dedicada al banco verificado (solo 22 chunks, se cachea) ──────────
+import json as _json
+
+_verified_cache: list[dict] | None = None
+VERIFIED_MIN_CHUNK_ID = 1_000_000  # rango reservado para Q&A/casos verificados
+
+
+def _load_verified_chunks() -> list[dict]:
+    """Carga (una vez) los chunks verificados con su embedding parseado a lista."""
+    global _verified_cache
+    if _verified_cache is not None:
+        return _verified_cache
+    try:
+        r = (supabase.table("document_chunks")
+             .select("chunk_id,content,source,embedding")
+             .gte("chunk_id", VERIFIED_MIN_CHUNK_ID)
+             .execute())
+        out = []
+        for row in (r.data or []):
+            emb = row.get("embedding")
+            if isinstance(emb, str):
+                emb = _json.loads(emb)
+            row["embedding"] = emb
+            out.append(row)
+        _verified_cache = out
+    except Exception as e:
+        print(f"Error loading verified chunks: {e}")
+        _verified_cache = []
+    return _verified_cache
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+async def search_verified(query_embedding: list[float], top_k: int = 2,
+                          threshold: float = 0.5) -> list[dict]:
+    """
+    Busca SOLO entre los chunks verificados (banco Q&A curado) por similitud coseno.
+    Garantiza que la mejor respuesta curada entre al contexto aunque, al reformular
+    la pregunta, no destaque frente a los 2420 chunks de los PDFs.
+    """
+    chunks = _load_verified_chunks()
+    scored = []
+    for c in chunks:
+        sim = _cosine(query_embedding, c["embedding"])
+        if sim >= threshold:
+            scored.append({"chunk_id": c["chunk_id"], "content": c["content"],
+                           "source": c["source"], "similarity": sim})
+    scored.sort(key=lambda x: x["similarity"], reverse=True)
+    return scored[:top_k]
+
+
 async def get_stats() -> dict:
     """Obtiene estadísticas de la base de datos."""
     try:
