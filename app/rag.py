@@ -1,3 +1,5 @@
+import asyncio
+
 from app.embeddings import embed_query
 from app.llm import generate_answer
 from app.database import search_similar, keyword_search, search_verified
@@ -8,9 +10,11 @@ from app.database import search_similar, keyword_search, search_verified
 MIN_SIMILARITY = 0.42
 
 # Cuantos chunks recuperar de cada fuente
-VECTOR_TOP_K = 12          # red más amplia: así el chunk verificado aparece aunque
-KEYWORD_LIMIT = 5          # quede en posición media al reformular la pregunta
-MAX_CONTEXT_CHUNKS = 8
+VECTOR_TOP_K = 10          # red amplia para que el chunk relevante aparezca
+KEYWORD_LIMIT = 4
+# Menos chunks al contexto = menos tokens de entrada = el 70b responde más rápido.
+# El banco verificado se inyecta aparte (search_verified), así que no se pierde precisión.
+MAX_CONTEXT_CHUNKS = 6
 
 # Fuentes curadas/verificadas por el equipo PMDI. Tienen PRIORIDAD en el contexto:
 # son respuestas revisadas, más precisas que los fragmentos crudos de los PDFs.
@@ -91,15 +95,21 @@ async def prepare(question: str, history: list[dict] | None = None,
     Se usa tanto en la respuesta normal como en la de streaming.
     """
     question_embedding = embed_query(question)
-    vector_chunks = await search_similar(question_embedding, top_k=top_k, threshold=0.0)
 
+    # Las tres búsquedas son independientes → se ejecutan EN PARALELO (más rápido)
+    vector_chunks, keyword_chunks, verified_chunks = await asyncio.gather(
+        search_similar(question_embedding, top_k=top_k, threshold=0.0),
+        keyword_search(question, limit=KEYWORD_LIMIT),
+        search_verified(question_embedding, top_k=2, threshold=0.45),
+    )
+
+    # Barrera anti-alucinación: si la pregunta está fuera de tema y no hay historial.
+    # Si hay un chunk verificado relevante, también se considera dentro de tema.
     best_sim = _best_similarity(vector_chunks)
-    if best_sim < MIN_SIMILARITY and not history:
+    if best_sim < MIN_SIMILARITY and not verified_chunks and not history:
         return {"off_topic": True, "answer": NO_CONTEXT_RESPONSE,
                 "sources": [], "context": "", "best_similarity": best_sim}
 
-    keyword_chunks = await keyword_search(question, limit=KEYWORD_LIMIT)
-    verified_chunks = await search_verified(question_embedding, top_k=2, threshold=0.5)
     chunks = _merge_chunks(verified_chunks + vector_chunks, keyword_chunks)
 
     return {"off_topic": False, "answer": None, "sources": extract_sources(chunks),

@@ -153,7 +153,21 @@ async def search_verified(query_embedding: list[float], top_k: int = 2,
             scored.append({"chunk_id": c["chunk_id"], "content": c["content"],
                            "source": c["source"], "similarity": sim})
     scored.sort(key=lambda x: x["similarity"], reverse=True)
-    return scored[:top_k]
+
+    # Dedupe por RESPUESTA: varias variantes de la misma pregunta apuntan al mismo
+    # texto; se incluye una sola vez para no repetir la respuesta en el contexto.
+    seen, out = set(), []
+    for c in scored:
+        content = c["content"]
+        i = content.find("Respuesta:")
+        key = content[i:].strip() if i >= 0 else content.strip()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(c)
+        if len(out) >= top_k:
+            break
+    return out
 
 
 async def get_stats() -> dict:
