@@ -2,259 +2,251 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agente IA - Plan Maestro Medellín</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#00AEEF">
+    <title>Asistente Virtual · Plan Maestro Medellín Distrito Inteligente</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --cyan: #00AEEF;          /* Pantone 306 C - acento institucional */
+            --cyan-dark: #0089BD;
+            --cyan-soft: #E7F7FD;
+            --ink: #1F2A33;
+            --muted: #6B7280;
+            --line: #E5E8EB;
+            --bg: #EDF1F4;
+            --user: #00AEEF;
         }
 
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+            background: var(--bg);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
+            padding: 16px;
+            color: var(--ink);
         }
 
         .container {
             width: 100%;
-            max-width: 900px;
-            height: 90vh;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 880px;
+            height: 92vh;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
+        /* ---------- Encabezado institucional ---------- */
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 18px;
+            background: #fff;
+            border-bottom: 3px solid var(--cyan);
         }
-
-        .header h1 {
-            font-size: 24px;
-            margin-bottom: 5px;
+        .header img.logo { height: 46px; width: auto; flex-shrink: 0; }
+        .header .titles { flex: 1; min-width: 0; }
+        .header .titles h1 {
+            font-size: 16px;
+            line-height: 1.2;
+            color: var(--ink);
         }
-
-        .header p {
-            font-size: 13px;
-            opacity: 0.9;
+        .header .titles p {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
         }
+        .header .actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .icon-btn {
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--cyan-dark);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            text-decoration: none;
+            transition: background .15s, border-color .15s;
+        }
+        .icon-btn:hover { background: var(--cyan-soft); border-color: var(--cyan); }
 
+        /* ---------- Área de chat ---------- */
         .chat-area {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 18px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
+            background: linear-gradient(180deg, #F7FAFC 0%, #fff 60px);
         }
 
-        .message {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .message.user {
-            justify-content: flex-end;
-        }
+        .message { display: flex; flex-direction: column; }
+        .message.user { align-items: flex-end; }
+        .message.assistant { align-items: flex-start; }
 
         .message-content {
-            max-width: 70%;
-            padding: 12px 16px;
-            border-radius: 8px;
+            max-width: 80%;
+            padding: 12px 15px;
+            border-radius: 14px;
+            font-size: 15px;
+            line-height: 1.55;
             word-wrap: break-word;
+            overflow-wrap: anywhere;
         }
-
         .message.user .message-content {
-            background: #667eea;
-            color: white;
-            border-radius: 8px 0 8px 8px;
+            background: var(--user);
+            color: #fff;
+            border-bottom-right-radius: 4px;
         }
-
         .message.assistant .message-content {
-            background: #f0f0f0;
-            color: #333;
-            border-radius: 0 8px 8px 8px;
+            background: #fff;
+            color: var(--ink);
+            border: 1px solid var(--line);
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
+        .message-content p { margin: 0 0 8px; }
+        .message-content p:last-child { margin-bottom: 0; }
+        .message-content ul, .message-content ol { margin: 6px 0 8px 20px; }
+        .message-content li { margin-bottom: 4px; }
+        .message-content strong { color: var(--cyan-dark); }
+        .message.user .message-content strong { color: #fff; }
+        .message-content a { color: var(--cyan-dark); }
 
-        .message-content a {
-            color: #667eea;
-            text-decoration: none;
-        }
-
-        .message.user .message-content a {
-            color: white;
-        }
-
-        .message.assistant .message-content a:hover {
-            text-decoration: underline;
-        }
-
+        /* ---------- Membrete de fuentes (cita) ---------- */
         .sources {
-            background: #f9f9f9;
-            border-left: 4px solid #667eea;
-            padding: 12px;
+            max-width: 80%;
             margin-top: 8px;
-            border-radius: 4px;
-            font-size: 13px;
+            background: #F4FAFD;
+            border: 1px solid var(--line);
+            border-left: 4px solid var(--cyan);
+            border-radius: 10px;
+            padding: 10px 12px;
         }
-
         .sources-title {
-            font-weight: 600;
-            color: #667eea;
-            margin-bottom: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: var(--cyan-dark);
+            margin-bottom: 8px;
+        }
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .chip {
+            display: inline-block;
+            max-width: 100%;
+            background: #fff;
+            border: 1px solid var(--line);
+            color: #374151;
+            font-size: 12px;
+            line-height: 1.3;
+            padding: 5px 10px;
+            border-radius: 12px;
+            overflow-wrap: anywhere;
+        }
+        .chip-verified {
+            background: var(--cyan);
+            border-color: var(--cyan);
+            color: #fff;
+            font-weight: bold;
         }
 
-        .source-item {
-            color: #666;
-            padding: 4px 0;
-        }
-
-        .typing-indicator {
-            display: flex;
-            gap: 4px;
-        }
-
+        /* ---------- Indicador de escritura ---------- */
+        .typing-indicator { display: flex; gap: 5px; padding: 4px 2px; }
         .typing-indicator span {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #999;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--cyan); opacity: .6;
             animation: bounce 1.4s infinite;
         }
+        .typing-indicator span:nth-child(2) { animation-delay: .2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: .4s; }
+        @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-8px)} }
 
-        .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-
-        @keyframes bounce {
-            0%, 60%, 100% { transform: translateY(0); }
-            30% { transform: translateY(-10px); }
-        }
-
+        /* ---------- Entrada ---------- */
         .input-area {
-            border-top: 1px solid #eee;
-            padding: 16px;
-            background: white;
             display: flex;
-            gap: 12px;
+            gap: 10px;
+            padding: 12px 14px;
+            background: #fff;
+            border-top: 1px solid var(--line);
+            padding-bottom: calc(12px + env(safe-area-inset-bottom));
         }
-
         .input-area input {
             flex: 1;
-            border: 1px solid #ddd;
+            border: 1px solid var(--line);
             border-radius: 24px;
-            padding: 12px 16px;
-            font-size: 14px;
+            padding: 13px 16px;
+            font-size: 16px;            /* 16px evita el zoom automático en iOS */
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color .15s, box-shadow .15s;
         }
-
         .input-area input:focus {
-            border-color: #667eea;
+            border-color: var(--cyan);
+            box-shadow: 0 0 0 3px rgba(0,174,239,.15);
         }
-
         .input-area button {
-            background: #667eea;
-            color: white;
+            background: var(--cyan);
+            color: #fff;
             border: none;
             border-radius: 24px;
-            padding: 12px 24px;
+            padding: 0 22px;
+            font-size: 15px;
+            font-weight: bold;
             cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
+            transition: background .15s;
         }
+        .input-area button:hover { background: var(--cyan-dark); }
+        .input-area button:disabled { opacity: .5; cursor: not-allowed; }
 
-        .input-area button:hover {
-            background: #5568d3;
-        }
-
-        .input-area button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .admin-link {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 12px 16px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 24px;
-            cursor: pointer;
-            font-size: 13px;
-            text-decoration: none;
-            transition: background 0.2s;
-        }
-
-        .admin-link:hover {
-            background: #5568d3;
-        }
-
-        .loading {
-            opacity: 0.6;
-        }
-
-        @media (max-width: 768px) {
-            .message-content {
-                max-width: 90%;
+        /* ---------- Móvil ---------- */
+        @media (max-width: 760px) {
+            body { padding: 0; align-items: stretch; }
+            .container {
+                height: 100vh;
+                height: 100dvh;
+                max-width: 100%;
+                border-radius: 0;
+                box-shadow: none;
             }
-
-            .header h1 {
-                font-size: 20px;
-            }
-
-            .admin-link {
-                padding: 10px 14px;
-                font-size: 12px;
-            }
+            .header img.logo { height: 38px; }
+            .header .titles h1 { font-size: 14px; }
+            .header .titles p { font-size: 11px; }
+            .message-content { max-width: 90%; font-size: 15px; }
+            .sources { max-width: 92%; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Agente IA - Plan Maestro Medellín</h1>
-            <p>Consulta inteligente sobre el Plan Maestro Medellín Inteligente (PMDI)</p>
-            <button id="newChatBtn" onclick="newConversation()"
-                style="margin-top:10px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:6px 14px;cursor:pointer;font-size:12px;">
-                ＋ Nueva conversación
-            </button>
+            <img src="/static/logo-alcaldia.png" alt="Alcaldía de Medellín - Distrito de Ciencia, Tecnología e Innovación" class="logo">
+            <div class="titles">
+                <h1>Asistente Virtual del PMDI</h1>
+                <p>Plan Maestro Medellín · Distrito Inteligente</p>
+            </div>
+            <div class="actions">
+                <button class="icon-btn" id="newChatBtn" onclick="newConversation()" title="Nueva conversación" aria-label="Nueva conversación">＋</button>
+                <a class="icon-btn" href="/admin" title="Panel administrativo" aria-label="Panel administrativo">⚙</a>
+            </div>
         </div>
 
         <div class="chat-area" id="chatArea"></div>
 
         <div class="input-area">
-            <input
-                type="text"
-                id="questionInput"
-                placeholder="Escribe tu pregunta aquí..."
-                autocomplete="off"
-            >
+            <input type="text" id="questionInput" placeholder="Escribe tu pregunta sobre el PMDI…" autocomplete="off">
             <button id="sendBtn" onclick="sendQuestion()">Enviar</button>
         </div>
     </div>
-
-    <a href="/admin" class="admin-link">Panel Admin</a>
 
     <script>
         const chatArea = document.getElementById('chatArea');
@@ -266,9 +258,9 @@
 
         const WELCOME_HTML =
             '<strong>Hola 👋</strong><br>' +
-            'Soy un asistente de IA especializado en el Plan Maestro Medellín Inteligente. ' +
-            'Puedo responder tus preguntas sobre los objetivos, ejes estratégicos y documentos del plan.<br><br>' +
-            '<em>¿Qué deseas saber?</em>';
+            'Soy el Asistente Virtual del Plan Maestro Medellín Distrito Inteligente (PMDI). ' +
+            'Puedo orientarte sobre los pilares, misiones, gobernanza y cómo articular tu proyecto con el plan.<br><br>' +
+            '<em>¿En qué puedo ayudarte?</em>';
 
         let _memId = null;  // respaldo en memoria si localStorage no está disponible
 
@@ -280,7 +272,6 @@
         }
 
         function getConversationId() {
-            // Intentar localStorage; si falla (modo privado en móvil), usar memoria
             try {
                 let id = localStorage.getItem('pmdi_conversation_id');
                 if (!id) {
@@ -301,20 +292,16 @@
             chatArea.appendChild(div);
         }
 
-        // Cargar conversación guardada al abrir la página
         async function loadConversation() {
             const id = getConversationId();
             try {
                 const res = await fetch('/conversation/' + id);
                 const data = await res.json();
                 const messages = (data && data.messages) || [];
-                if (messages.length === 0) {
-                    showWelcome();
-                    return;
-                }
+                if (messages.length === 0) { showWelcome(); return; }
                 messages.forEach(m => {
                     const sources = Array.isArray(m.sources) ? m.sources : [];
-                    addMessage(m.content, m.role === 'user', sources, false);
+                    addMessage(m.content, m.role === 'user', sources);
                     conversationHistory.push({ role: m.role, content: m.content });
                 });
             } catch (e) {
@@ -325,22 +312,27 @@
         function newConversation() {
             try { localStorage.removeItem('pmdi_conversation_id'); } catch (e) {}
             _memId = null;
-            getConversationId();          // genera uno nuevo
+            getConversationId();
             conversationHistory = [];
             chatArea.innerHTML = '';
             showWelcome();
             questionInput.focus();
         }
 
-        function escapeHtml(text) {
-            const map = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            };
-            return text.replace(/[&<>"']/g, m => map[m]);
+        // Quita las citas "(Fuente: ...)" del texto; la cita se muestra como membrete aparte
+        function stripInlineCites(t) {
+            return (t || '').replace(/\s*\((?:Fuente|Fuentes)\s*:[^)]*\)/gi, '').trim();
+        }
+
+        // Nombre de fuente legible para el chip
+        function cleanSource(s) {
+            if (!s) return '';
+            if (s.indexOf('Banco Q&A') === 0) return '✓ Respuesta verificada';
+            if (s.indexOf('Casos de articul') === 0) return '✓ Caso verificado';
+            return s.replace(/\.pdf$/i, '').replace(/\s+/g, ' ').trim();
+        }
+        function isVerified(s) {
+            return s.indexOf('Banco Q&A') === 0 || s.indexOf('Casos de articul') === 0;
         }
 
         function addMessage(content, isUser = false, sources = []) {
@@ -349,86 +341,70 @@
 
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-
             if (isUser) {
                 contentDiv.textContent = content;
             } else {
-                contentDiv.innerHTML = marked.parse(content);
+                contentDiv.innerHTML = marked.parse(stripInlineCites(content));
             }
-
             messageDiv.appendChild(contentDiv);
 
-            if (!isUser && sources.length > 0) {
-                const sourcesDiv = document.createElement('div');
-                sourcesDiv.className = 'sources';
-                sourcesDiv.innerHTML = '<div class="sources-title">📚 Fuentes consultadas:</div>';
+            if (!isUser && sources && sources.length > 0) {
+                const box = document.createElement('div');
+                box.className = 'sources';
+                const label = document.createElement('div');
+                label.className = 'sources-title';
+                label.textContent = '📑 Fuentes consultadas';
+                box.appendChild(label);
 
-                sources.forEach(source => {
-                    const sourceItem = document.createElement('div');
-                    sourceItem.className = 'source-item';
-                    sourceItem.textContent = '• ' + source;
-                    sourcesDiv.appendChild(sourceItem);
+                const chips = document.createElement('div');
+                chips.className = 'chips';
+                sources.forEach(s => {
+                    const chip = document.createElement('span');
+                    chip.className = 'chip' + (isVerified(s) ? ' chip-verified' : '');
+                    chip.textContent = cleanSource(s);
+                    chips.appendChild(chip);
                 });
-
-                messageDiv.appendChild(sourcesDiv);
+                box.appendChild(chips);
+                messageDiv.appendChild(box);
             }
 
             chatArea.appendChild(messageDiv);
             chatArea.scrollTop = chatArea.scrollHeight;
-
             return messageDiv;
         }
 
         async function sendQuestion() {
             const question = questionInput.value.trim();
+            if (!question) return;
 
-            if (!question) {
-                alert('Por favor, escribe una pregunta');
-                return;
-            }
-
-            // Agregar mensaje del usuario
             addMessage(question, true);
             conversationHistory.push({ role: 'user', content: question });
             questionInput.value = '';
 
-            // Mostrar indicador de tipeo
             const typingDiv = document.createElement('div');
             typingDiv.className = 'message assistant';
             typingDiv.id = 'typingIndicator';
-            const typingContent = document.createElement('div');
-            typingContent.className = 'message-content typing-indicator';
-            typingContent.innerHTML = '<span></span><span></span><span></span>';
-            typingDiv.appendChild(typingContent);
+            typingDiv.innerHTML = '<div class="message-content"><div class="typing-indicator"><span></span><span></span><span></span></div></div>';
             chatArea.appendChild(typingDiv);
             chatArea.scrollTop = chatArea.scrollHeight;
 
-            // Desabilitar entrada
             questionInput.disabled = true;
             sendBtn.disabled = true;
 
             try {
                 const response = await fetch('/query', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         question: question,
                         top_k: 5,
                         conversation_id: getConversationId(),
-                        // Enviamos el historial SIN el último turno del usuario (ya va en 'question')
                         history: conversationHistory.slice(0, -1).slice(-6)
                     })
                 });
-
-                if (!response.ok) {
-                    throw new Error(`Error: ${response.statusText}`);
-                }
-
+                if (!response.ok) throw new Error(`Error: ${response.statusText}`);
                 const data = await response.json();
 
-                // Remover indicador de tipeo
                 const typingEl = document.getElementById('typingIndicator');
                 if (typingEl) typingEl.remove();
 
@@ -441,7 +417,6 @@
             } catch (error) {
                 const typingEl = document.getElementById('typingIndicator');
                 if (typingEl) typingEl.remove();
-
                 addMessage(`Error: ${error.message}`, false);
             } finally {
                 questionInput.disabled = false;
@@ -450,15 +425,10 @@
             }
         }
 
-        // Permitir enviar con Enter
         questionInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendQuestion();
-            }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
         });
 
-        // Inicialización: cargar conversación guardada y enfocar
         loadConversation();
         questionInput.focus();
     </script>
