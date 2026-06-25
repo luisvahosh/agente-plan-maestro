@@ -6,3 +6,4 @@ supabase
 tqdm
 pydantic
 PyMuPDF
+python-docx
