@@ -1,12 +1,14 @@
 # Entorno y secretos
 venv/
 .env
+env-vps.txt
 __pycache__/
 *.pyc
 uvicorn.log
 
 # Datos y PDFs (la ingesta ya está en Supabase; no se necesitan para desplegar)
 Documentos/
+entrenamiento/
 chunks_plan_maestro.json
 *.pdf
 
