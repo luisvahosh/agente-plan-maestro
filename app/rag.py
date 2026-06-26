@@ -20,6 +20,21 @@ MAX_CONTEXT_CHUNKS = 6
 # son respuestas revisadas, más precisas que los fragmentos crudos de los PDFs.
 VERIFIED_SOURCES = {"Banco Q&A verificado PMDI", "Casos de articulación PMDI"}
 
+# Si la respuesta del LLM es un rechazo de tema ajeno, NO se muestran fuentes
+# (sería confuso citar documentos para una respuesta tipo "no es de mi competencia").
+OFFTOPIC_MARKERS = (
+    "lamento no poder ayudarte",
+    "enfocada exclusivamente en el plan maestro",
+    "no encontré información sobre",   # rechazo (barrera o improvisado por el LLM)
+    "no encontre informacion sobre",   # variante sin tildes
+)
+
+
+def is_offtopic_answer(answer: str) -> bool:
+    a = (answer or "").lower()
+    return any(m in a for m in OFFTOPIC_MARKERS)
+
+
 NO_CONTEXT_RESPONSE = (
     "No encontré información sobre esto en los documentos del "
     "Plan Maestro Medellín Inteligente. Por favor, formula una "
@@ -142,9 +157,11 @@ async def query(question: str, history: list[dict] | None = None,
             }
 
         answer = generate_answer(question, prep["context"], history)
+        # Si el LLM declinó por tema ajeno, no mostrar fuentes
+        sources = [] if is_offtopic_answer(answer) else prep["sources"]
         return {
             "success": True, "question": question,
-            "answer": answer, "sources": prep["sources"],
+            "answer": answer, "sources": sources,
             "chunks_used": prep.get("chunks_used", 0),
             "best_similarity": prep["best_similarity"],
         }

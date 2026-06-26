@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.rag import query, prepare
+from app.rag import query, prepare, is_offtopic_answer
 from app.llm import generate_answer_stream
 from app.database import (
     get_stats, get_chunks_by_source, delete_all_chunks,
@@ -138,11 +138,13 @@ async def post_query_stream(request: QueryRequest):
                     yield sse({"type": "delta", "data": delta})
 
             answer = "".join(full)
+            # Si el LLM declinó por tema ajeno, no mostrar fuentes
+            sources = [] if is_offtopic_answer(answer) else prep["sources"]
             if request.conversation_id:
                 save_message_sync(request.conversation_id, "user", request.question)
-                save_message_sync(request.conversation_id, "assistant", answer, prep["sources"])
+                save_message_sync(request.conversation_id, "assistant", answer, sources)
 
-            yield sse({"type": "done", "sources": prep["sources"]})
+            yield sse({"type": "done", "sources": sources})
         except Exception as e:
             yield sse({"type": "error", "data": str(e)})
 
