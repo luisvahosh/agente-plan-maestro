@@ -19,6 +19,9 @@ MAX_CONTEXT_CHUNKS = 6
 # Fuentes curadas/verificadas por el equipo PMDI. Tienen PRIORIDAD en el contexto:
 # son respuestas revisadas, más precisas que los fragmentos crudos de los PDFs.
 VERIFIED_SOURCES = {"Banco Q&A verificado PMDI", "Casos de articulación PMDI"}
+# Máximo de chunks verificados en el contexto: deja espacio para documentos (PDFs)
+# y así las citas muestran tanto la respuesta verificada como los Anexos de respaldo.
+VERIFIED_SLOTS = 2
 
 # Si la respuesta del LLM es un rechazo de tema ajeno, NO se muestran fuentes
 # (sería confuso citar documentos para una respuesta tipo "no es de mi competencia").
@@ -63,14 +66,21 @@ def _best_similarity(chunks: list[dict]) -> float:
     return max(c.get("similarity", 0.0) for c in chunks)
 
 
+def _is_verified(chunk: dict) -> bool:
+    return chunk.get("source") in VERIFIED_SOURCES
+
+
 def _merge_chunks(vector_chunks: list[dict], keyword_chunks: list[dict]) -> list[dict]:
     """
-    Combina los resultados priorizando:
-    1. Chunks de FUENTES VERIFICADAS (banco Q&A curado) — van primero, porque son
-       respuestas revisadas y precisas. Esto evita que al reformular la pregunta el
-       agente caiga en fragmentos crudos de PDF y pierda los datos exactos.
-    2. Mejores chunks por palabra clave (término exacto).
-    3. Chunks vectoriales (semántica).
+    Combina los resultados garantizando que el contexto tenga TANTO la respuesta
+    verificada COMO los documentos que la respaldan (para que las citas muestren
+    el banco verificado + los Anexos/PDFs, no solo el verificado).
+
+    Orden:
+    1. Hasta VERIFIED_SLOTS chunks verificados (los mejores) — la respuesta curada.
+    2. Chunks NO verificados por palabra clave (documentos con el término exacto).
+    3. Chunks NO verificados vectoriales (documentos por semántica).
+    4. Si queda espacio, más verificados.
     """
     seen = set()
     result = []
@@ -80,24 +90,30 @@ def _merge_chunks(vector_chunks: list[dict], keyword_chunks: list[dict]) -> list
         if cid not in seen and len(result) < MAX_CONTEXT_CHUNKS:
             seen.add(cid)
             result.append(chunk)
+            return True
+        return False
 
-    # 1. PRIORIDAD: chunks verificados que aparezcan en cualquiera de las búsquedas
+    # 1. Hasta VERIFIED_SLOTS verificados (sin copar todo el contexto)
+    nverif = 0
     for c in vector_chunks + keyword_chunks:
-        if c.get("source") in VERIFIED_SOURCES:
+        if _is_verified(c) and nverif < VERIFIED_SLOTS:
+            if add(c):
+                nverif += 1
+
+    # 2. Documentos (NO verificados) por palabra clave
+    for c in keyword_chunks:
+        if not _is_verified(c):
             add(c)
 
-    # 2. Mejores chunks por palabra clave
-    keyword_slots = MAX_CONTEXT_CHUNKS // 2
-    for c in keyword_chunks[:keyword_slots]:
-        add(c)
-
-    # 3. Rellenar con vectoriales (semántica)
+    # 3. Documentos (NO verificados) vectoriales
     for c in vector_chunks:
-        add(c)
+        if not _is_verified(c):
+            add(c)
 
-    # 4. Resto de palabra clave si queda espacio
-    for c in keyword_chunks[keyword_slots:]:
-        add(c)
+    # 4. Si sobra espacio, más verificados
+    for c in vector_chunks + keyword_chunks:
+        if _is_verified(c):
+            add(c)
 
     return result
 
