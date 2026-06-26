@@ -87,6 +87,9 @@ def generate_answer_stream(question: str, context: str, history: list[dict] | No
         stream=True,
     )
     for chunk in stream:
+        # Algunos chunks finales traen choices=[] (info de uso/cierre) → saltarlos
+        if not chunk.choices:
+            continue
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta
